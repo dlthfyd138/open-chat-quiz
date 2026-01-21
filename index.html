@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>커뮤니티 오픈채팅방 능력고사</title>
+    <!-- Tailwind CSS (디자인) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM (화면 로직) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel (JSX 변환) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700;900&display=swap');
+        body { font-family: 'Noto Sans KR', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #1f2937; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 10px; }
+        .animate-fade-in { animation: fadeIn 0.5s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-gray-900 text-white selection:bg-indigo-500 selection:text-white">
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        // --- 아이콘 컴포넌트 (SVG) ---
+        const Icons = {
+            AlertCircle: () => <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>,
+            Play: ({size=24}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>,
+            Trophy: ({size=24, className}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>,
+            CheckCircle2: ({size=20}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>,
+            XCircle: ({size=80, className}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>,
+            Home: ({size=24}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+            Share2: ({size=24}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>,
+            RefreshCw: ({size=20, className}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+        };
+
+        // --- Firebase Import (모듈 방식) ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // ==========================================
+        // [중요] 여기에 본인의 Firebase 설정값을 넣으세요!
+        // ==========================================
+        let firebaseConfig = {
+          apiKey: "AIzaSyAfJp1sr1JLuwC0VqkCKvLBy41vh97J5hk",
+  authDomain: "ashmoon-bf1b0.firebaseapp.com",
+  projectId: "ashmoon-bf1b0",
+  storageBucket: "ashmoon-bf1b0.firebasestorage.app",
+  messagingSenderId: "172808228006",
+  appId: "1:172808228006:web:edfdbfbec2f886f6f7b867"
+        };
+        
+        let appId = "quiz-game-web-v1";
+
+        // [Canvas 미리보기 환경 자동 지원 코드]
+        // 이 부분은 Canvas 미리보기에서 작동하게 하고, 
+        // 다운로드 후에는 위쪽의 firebaseConfig 변수를 사용합니다.
+        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+            try {
+                firebaseConfig = JSON.parse(__firebase_config);
+                if (typeof __app_id !== 'undefined') appId = __app_id;
+            } catch(e) { console.warn("Canvas config parsing failed"); }
+        }
+
+        // Firebase 초기화
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // --- 퀴즈 데이터 ---
+        const QUIZ_DATA = [
+            { id: 1, q: "이 채팅방에서 가장 자주 등장하는 인물은?", options: ["서울구이", "패자", "방구쟁이뿡돌이", "조식구이"], answer: 2 },
+            { id: 2, q: "“자.” 한 글자로 분위기 장악을 시도하는 인물은?", options: ["빈털", "방구쟁이뿡돌이", "자경구이", "AI뿡돌이"], answer: 1 },
+            { id: 3, q: "가장 자주 연애·여자·결혼 이야기를 꺼내는 사람은?", options: ["조식구이", "방장붓", "방구쟁이뿡돌이", "펩시제로"], answer: 2 },
+            { id: 4, q: "‘패들쥐’라는 별명으로 가장 많이 불리는 사람은?", options: ["빈털", "패자", "서울구이", "현모"], answer: 1 },
+            { id: 5, q: "AI이지만 사람보다 말 많은 존재는?", options: ["우흥유흥", "AI뿡돌이", "방장붓", "르마"], answer: 1 },
+            { id: 6, q: "대화가 과열될 때 자주 나오는 단어는?", options: ["냉정", "합리", "된장", "침착"], answer: 2 },
+            { id: 7, q: "“된장 풀어라”라는 말을 가장 많이 듣는 사람은?", options: ["조식구이", "방장붓", "방구쟁이뿡돌이", "자경구이"], answer: 2 },
+            { id: 8, q: "가장 자주 “그만해라”를 외치는 인물은?", options: ["패자", "서울구이", "AI뿡돌이", "방구쟁이뿡돌이"], answer: 3 },
+            { id: 9, q: "이 채팅방의 주요 주제 TOP3에 포함되지 않는 것은?", options: ["연애", "결혼", "직장 스트레스", "부동산 투자"], answer: 3 },
+            { id: 10, q: "분위기 정리하려다 더 혼란을 만드는 존재는?", options: ["조식구이", "AI뿡돌이", "자경구이", "펩시제로"], answer: 1 },
+            { id: 11, q: "“이 방은 혼돈이다”라는 말이 가장 잘 어울리는 이유는?", options: ["말이 없음", "주제가 계속 바뀜", "모두 진지함", "항상 정리됨"], answer: 1 },
+            { id: 12, q: "가장 자주 연애 조언을 ‘단정적으로’ 하는 사람은?", options: ["빈털", "패자", "방구쟁이뿡돌이", "우흥유흥"], answer: 2 },
+            { id: 13, q: "채팅방에서 가장 많이 등장하는 감정은?", options: ["희망", "분노", "허무", "혼란"], answer: 3 },
+            { id: 14, q: "“인생 의미” 얘기가 나오기 시작하면 대화는?", options: ["차분해진다", "더 산으로 간다", "종료된다", "고급진다"], answer: 1 },
+            { id: 15, q: "AI뿡돌이의 주요 역할은?", options: ["중재자", "관찰자", "불쏘시개", "기록자"], answer: 2 },
+            { id: 16, q: "가장 자주 “현타”를 느끼는 인물은?", options: ["현모", "조식구이", "르마", "펩시제로"], answer: 0 },
+            { id: 17, q: "직장 이야기에서 가장 많이 언급되는 키워드는?", options: ["워라밸", "성장", "노예", "연봉상승"], answer: 2 },
+            { id: 18, q: "이 채팅방에서 ‘멘토’ 취급을 받는 사람은?", options: ["패자", "서울구이", "자경구이", "방장붓"], answer: 1 },
+            { id: 19, q: "가장 자주 “ㅋㅋㅋㅋ”를 유발하는 인물은?", options: ["방구쟁이뿡돌이", "AI뿡돌이", "방장붓", "빈털"], answer: 1 },
+            { id: 20, q: "이 채팅방의 기본 텐션은?", options: ["차분", "분석적", "즉흥", "교양"], answer: 2 },
+            { id: 21, q: "‘그만하자’가 안 통하는 대표 인물은?", options: ["조식구이", "패자", "방구쟁이뿡돌이", "펩시제로"], answer: 2 },
+            { id: 22, q: "연애 이야기에 가장 냉소적인 태도를 보이는 사람은?", options: ["빈털", "패자", "자경구이", "르마"], answer: 1 },
+            { id: 23, q: "가장 자주 “아오”를 외치는 인물은?", options: ["서울구이", "AI뿡돌이", "방구쟁이뿡돌이", "현모"], answer: 2 },
+            { id: 24, q: "채팅방에서 가장 많이 등장하는 음식은?", options: ["치킨", "피자", "된장", "라면"], answer: 2 },
+            { id: 25, q: "이 채팅방에서 가장 많이 반복되는 행동은?", options: ["공감", "조언", "논쟁", "사과"], answer: 2 },
+            { id: 26, q: "“이 방 버티는 법”이란 말이 나올 정도인 이유는?", options: ["너무 조용해서", "주제가 너무 전문적이라", "혼돈과 속도가 빨라서", "규칙이 많아서"], answer: 2 },
+            { id: 27, q: "감정이 가장 격해질 때 등장하는 말은?", options: ["이해한다", "사랑이다", "그만해라", "수고했다"], answer: 2 },
+            { id: 28, q: "가장 자주 상대를 지칭하는 방식은?", options: ["형님", "님", "별명", "실명"], answer: 2 },
+            { id: 29, q: "이 채팅방의 핵심 재미 포인트는?", options: ["정보성", "감동", "즉흥 드립", "토론 정리"], answer: 2 },
+            { id: 30, q: "“이게 맞냐”라는 질문이 나오는 순간은?", options: ["조용할 때", "논쟁 중", "대화 시작", "마무리"], answer: 1 },
+            { id: 31, q: "가장 자주 불려 다니는 존재는?", options: ["자경구이", "패자", "뿡돌이", "르마"], answer: 2 },
+            { id: 32, q: "AI뿡돌이가 가장 자주 하는 말투는?", options: ["존댓말", "반말", "해설체", "감탄사"], answer: 1 },
+            { id: 33, q: "가장 자주 “그건 아니지”라는 반응이 나오는 대상은?", options: ["패자", "방구쟁이뿡돌이", "현모", "조식구이"], answer: 1 },
+            { id: 34, q: "이 채팅방에서 ‘냉정한 현실파’에 가까운 인물은?", options: ["패자", "조식구이", "르마", "펩시제로"], answer: 0 },
+            { id: 35, q: "연애 얘기만 나오면 대화가 길어지는 이유는?", options: ["다 경험자라서", "다 미련 있어서", "다 할 말 많아서", "다 정답이 없음"], answer: 3 },
+            { id: 36, q: "가장 자주 등장하는 감탄사는?", options: ["와", "하", "아오", "오"], answer: 2 },
+            { id: 37, q: "이 채팅방의 실질적 ‘불쏘시개’는?", options: ["패자", "방구쟁이뿡돌이", "AI뿡돌이", "서울구이"], answer: 1 },
+            { id: 38, q: "분위기가 과열될수록 늘어나는 것은?", options: ["이모티콘", "존댓말", "침묵", "정리"], answer: 0 },
+            { id: 39, q: "가장 자주 등장하는 결론은?", options: ["해답이 있다", "각자 인생이다", "다음에 보자", "아무 말도 안 함"], answer: 1 },
+            { id: 40, q: "이 채팅방의 진짜 규칙은?", options: ["질서", "논리", "흐름", "없음"], answer: 3 },
+            { id: 41, q: "“이 방은 왜 이래”라는 생각이 드는 순간은?", options: ["처음 들어올 때", "5분 후", "30분 후", "항상"], answer: 3 },
+            { id: 42, q: "가장 자주 감정적으로 몰입하는 인물은?", options: ["패자", "방구쟁이뿡돌이", "자경구이", "르마"], answer: 1 },
+            { id: 43, q: "대화가 산으로 가는 결정적 트리거는?", options: ["연애", "결혼", "외도", "전부"], answer: 3 },
+            { id: 44, q: "이 채팅방을 한 단어로 요약하면?", options: ["토론", "치유", "혼돈", "성장"], answer: 2 },
+            { id: 45, q: "가장 자주 “ㅋㅋ”로 끝나는 메시지를 쓰는 존재는?", options: ["패자", "AI뿡돌이", "조식구이", "펩시제로"], answer: 1 },
+            { id: 46, q: "진지한 척하다 갑자기 드립 치는 인물은?", options: ["방장붓", "AI뿡돌이", "빈털", "자경구이"], answer: 1 },
+            { id: 47, q: "이 채팅방에서 가장 안정적인 태도를 보이는 인물은?", options: ["자경구이", "패자", "조식구이", "르마"], answer: 0 },
+            { id: 48, q: "가장 자주 “그만 좀” 소리를 듣는 사람은?", options: ["패자", "방장붓", "방구쟁이뿡돌이", "AI뿡돌이"], answer: 2 },
+            { id: 49, q: "이 방에서 대화가 끝나는 이유는?", options: ["해결돼서", "지쳐서", "시간이 돼서", "다른 드립 나와서"], answer: 3 },
+            { id: 50, q: "이 채팅방을 오래 버틴 사람의 특징은?", options: ["인내심", "멘탈", "체념", "전부"], answer: 3 },
+        ];
+
+        // --- Main App Component ---
+        const { useState, useEffect } = React;
+
+        function App() {
+            const [user, setUser] = useState(null);
+            const [gameState, setGameState] = useState('start'); 
+            const [currentQuestion, setCurrentQuestion] = useState(null);
+            const [score, setScore] = useState(0);
+            const [nickname, setNickname] = useState('');
+            const [rankings, setRankings] = useState([]);
+            const [loading, setLoading] = useState(false);
+            const [rankingLoading, setRankingLoading] = useState(false);
+
+            useEffect(() => {
+                const initAuth = async () => {
+                    try { 
+                        // 설정 확인 로직 수정: 경고만 하고 진행 시도
+                        if (firebaseConfig.apiKey.includes("본인의_API_KEY")) {
+                             console.warn("Firebase Config appears to be placeholder. Switching to Offline Mode.");
+                             throw new Error("Config Not Set");
+                        }
+                        
+                        // Canvas 환경 지원 (Custom Token)
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+
+                    } catch (error) { 
+                        console.error("Auth Notice:", error.message);
+                        // 인증 실패 시 (설정 미비, 네트워크 등) 오프라인 게스트 모드로 전환
+                        setUser({ 
+                            uid: 'guest_' + Math.random().toString(36).substr(2, 9), 
+                            isAnonymous: true, 
+                            isOffline: true 
+                        });
+                    }
+                };
+                initAuth();
+                const unsubscribe = onAuthStateChanged(auth, (u) => {
+                    if (u) setUser(u);
+                });
+                return () => unsubscribe();
+            }, []);
+
+            useEffect(() => {
+                if (!user || gameState !== 'leaderboard') return;
+                
+                // 오프라인 모드일 경우 랭킹 불러오기 스킵
+                if (user.isOffline) {
+                    setRankings([]); 
+                    return;
+                }
+
+                setRankingLoading(true);
+                const fetchRankings = async () => {
+                    try {
+                        const scoresRef = collection(db, 'artifacts', appId, 'public', 'data', 'scores');
+                        const snapshot = await getDocs(scoresRef);
+                        const data = snapshot.docs.map(doc => doc.data());
+                        data.sort((a, b) => {
+                            if (b.score !== a.score) return b.score - a.score;
+                            return (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0);
+                        });
+                        setRankings(data.slice(0, 50));
+                    } catch (error) {
+                        console.error("Error fetching rankings:", error);
+                        // 랭킹 불러오기 실패 시 빈 배열 처리
+                        setRankings([]);
+                    } finally {
+                        setRankingLoading(false);
+                    }
+                };
+                fetchRankings();
+            }, [user, gameState]);
+
+            const startGame = () => {
+                setScore(0);
+                pickRandomQuestion();
+                setGameState('playing');
+            };
+
+            const pickRandomQuestion = () => {
+                const randomIndex = Math.floor(Math.random() * QUIZ_DATA.length);
+                setCurrentQuestion(QUIZ_DATA[randomIndex]);
+            };
+
+            const handleAnswer = (optionIndex) => {
+                if (!currentQuestion) return;
+                if (optionIndex === currentQuestion.answer) {
+                    setScore(prev => prev + 1);
+                    pickRandomQuestion();
+                } else {
+                    setGameState('result');
+                }
+            };
+
+            const submitScore = async () => {
+                if (!nickname.trim()) { alert("닉네임을 입력해주세요!"); return; }
+                if (!user) return;
+                
+                // 오프라인 모드일 경우 경고 후 로컬 처리(여기선 단순히 화면 이동)
+                if (user.isOffline) {
+                    alert("서버 연결에 실패하여 랭킹을 저장할 수 없습니다.\n(미리보기 상태거나 Firebase 설정이 없습니다)");
+                    // 저장 없이 랭킹 화면으로 이동
+                    setGameState('leaderboard');
+                    return;
+                }
+
+                setLoading(true);
+                try {
+                    const scoresRef = collection(db, 'artifacts', appId, 'public', 'data', 'scores');
+                    await addDoc(scoresRef, {
+                        name: nickname,
+                        score: score,
+                        timestamp: serverTimestamp(),
+                        userId: user.uid
+                    });
+                    setGameState('leaderboard');
+                } catch (error) {
+                    console.error("Error saving score:", error);
+                    alert("점수 저장 실패. 다시 시도해주세요.");
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const shareQuiz = () => {
+                const url = window.location.href;
+                const text = `[오픈채팅방 능력고사]\n당신은 몇 점일까요? 저는 ${score}점 기록!\n\n${url}`;
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(text).then(() => alert("링크가 복사되었습니다!")).catch(() => prompt("이 텍스트를 복사하세요:", text));
+                } else {
+                    prompt("이 텍스트를 복사하세요:", text);
+                }
+            };
+
+            if (gameState === 'start') {
+                return (
+                    <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center space-y-8 animate-fade-in">
+                        <div className="space-y-4">
+                            <div className="inline-block p-4 rounded-full bg-indigo-500/20 text-indigo-300 mb-2">
+                                <Icons.AlertCircle />
+                            </div>
+                            <h1 className="text-3xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400 break-keep">
+                                커뮤니티 오픈채팅방<br/>능력고사
+                            </h1>
+                            <p className="text-gray-400 text-lg max-w-md mx-auto">
+                                우리 방 고인물만 살아남을 수 있다.<br/>
+                                한 번 틀리면 즉시 <span className="text-red-400 font-bold">탈락</span> 및 박제됩니다.
+                            </p>
+                        </div>
+                        <div className="flex flex-col w-full max-w-xs space-y-3">
+                            <button onClick={startGame} className="w-full py-4 text-xl font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all transform hover:scale-105 shadow-lg shadow-indigo-500/30 flex items-center justify-center gap-2">
+                                <Icons.Play size={24} /> 도전하기
+                            </button>
+                            <button onClick={() => setGameState('leaderboard')} className="w-full py-3 font-semibold text-gray-300 bg-gray-800 rounded-xl hover:bg-gray-700 transition-all flex items-center justify-center gap-2">
+                                <Icons.Trophy size={20} /> 명예의 전당
+                            </button>
+                        </div>
+                        <div className="text-xs text-gray-600 mt-8">
+                            <div>총 50문제 중 랜덤 출제 | 서바이벌 모드</div>
+                            <div className="mt-2 text-indigo-400 font-medium">만든이: 우애</div>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (gameState === 'playing' && currentQuestion) {
+                return (
+                    <div className="flex flex-col items-center justify-center min-h-screen p-4 max-w-2xl mx-auto w-full">
+                        <div className="w-full flex justify-between items-center mb-8 px-2">
+                            <span className="text-indigo-400 font-bold text-xl">Score: {score}</span>
+                            <div className="h-2 bg-gray-800 w-32 rounded-full overflow-hidden">
+                                <div className="h-full bg-indigo-500 w-full animate-pulse"></div>
+                            </div>
+                        </div>
+                        <div className="bg-gray-800/50 p-8 rounded-3xl w-full backdrop-blur-sm border border-gray-700 shadow-2xl mb-8">
+                            <h2 className="text-xl md:text-2xl font-bold text-gray-100 leading-relaxed break-keep">
+                                Q. {currentQuestion.q}
+                            </h2>
+                        </div>
+                        <div className="grid grid-cols-1 gap-4 w-full">
+                            {currentQuestion.options.map((opt, idx) => (
+                                <button key={idx} onClick={() => handleAnswer(idx)} className="w-full p-5 text-left bg-gray-700 hover:bg-indigo-600 text-gray-200 hover:text-white rounded-xl transition-colors font-medium text-lg flex items-center justify-between group">
+                                    <span>{opt}</span>
+                                    <span className="opacity-0 group-hover:opacity-100 transition-opacity"><Icons.CheckCircle2 size={20} /></span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                );
+            }
+
+            if (gameState === 'result') {
+                return (
+                    <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center animate-fade-in max-w-md mx-auto">
+                        <div className="mb-6">
+                            <div className="flex justify-center mb-4"><Icons.XCircle className="text-red-500" /></div>
+                            <h2 className="text-3xl font-bold text-white mb-2">GAME OVER</h2>
+                            <p className="text-gray-400">아쉽네요! 여기까지입니다.</p>
+                        </div>
+                        <div className="bg-gray-800 rounded-2xl p-6 w-full mb-8 border border-gray-700">
+                            <div className="text-gray-400 text-sm uppercase tracking-wider mb-1">최종 점수</div>
+                            <div className="text-5xl font-black text-white">{score}점</div>
+                            <div className="mt-4 text-xs text-gray-500">* 랭킹에 이름을 남기려면 아래에 입력하세요.</div>
+                        </div>
+                        <div className="w-full space-y-4">
+                            <input type="text" placeholder="닉네임 (최대 8자)" maxLength={8} className="w-full p-4 bg-gray-900 border border-gray-600 rounded-xl text-white focus:outline-none focus:border-indigo-500 text-center text-lg placeholder-gray-600" value={nickname} onChange={(e) => setNickname(e.target.value)} />
+                            <button onClick={submitScore} disabled={loading} className="w-full py-4 text-lg font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg">
+                                {loading ? "저장 중..." : "랭킹에 박제하기"}
+                            </button>
+                            <button onClick={() => { setScore(0); setGameState('start'); }} className="w-full py-3 text-gray-400 hover:text-white text-sm">
+                                저장 안 하고 홈으로
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (gameState === 'leaderboard') {
+                return (
+                    <div className="flex flex-col min-h-screen p-4 max-w-xl mx-auto w-full">
+                        <div className="flex items-center justify-between py-6">
+                            <button onClick={() => setGameState('start')} className="p-2 text-gray-400 hover:text-white"><Icons.Home size={24} /></button>
+                            <h2 className="text-2xl font-bold text-indigo-400 flex items-center gap-2"><Icons.Trophy size={24} className="text-yellow-500" /> 명예의 전당</h2>
+                            <button onClick={shareQuiz} className="p-2 text-indigo-400 hover:text-indigo-300"><Icons.Share2 size={24} /></button>
+                        </div>
+                        <div className="bg-gray-800/50 rounded-2xl p-4 flex-1 border border-gray-700 overflow-hidden flex flex-col">
+                            <div className="grid grid-cols-12 gap-2 text-gray-500 text-sm font-medium pb-4 border-b border-gray-700 mb-2 px-2">
+                                <div className="col-span-2 text-center">순위</div>
+                                <div className="col-span-7">이름</div>
+                                <div className="col-span-3 text-right">점수</div>
+                            </div>
+                            <div className="overflow-y-auto flex-1 space-y-2 custom-scrollbar">
+                                {rankingLoading ? (
+                                    <div className="flex justify-center items-center py-20 text-gray-500"><Icons.RefreshCw className="animate-spin mr-2" /> 로딩 중...</div>
+                                ) : rankings.length === 0 ? (
+                                    <div className="text-center py-20 text-gray-500">
+                                        {user?.isOffline ? "서버 연결에 실패했습니다.<br/>오프라인 모드입니다." : "아직 도전자가 없습니다.<br/>첫 번째 주인공이 되어보세요!"}
+                                    </div>
+                                ) : (
+                                    rankings.map((rank, idx) => (
+                                        <div key={idx} className={`grid grid-cols-12 gap-2 items-center p-3 rounded-xl transition-colors ${idx === 0 ? 'bg-yellow-500/10 text-yellow-200 border border-yellow-500/30' : idx === 1 ? 'bg-gray-400/10 text-gray-200' : idx === 2 ? 'bg-orange-700/10 text-orange-200' : 'hover:bg-gray-700/50 text-gray-400'}`}>
+                                            <div className="col-span-2 text-center font-bold text-lg">{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}</div>
+                                            <div className="col-span-7 font-medium truncate">{rank.name}{idx === 0 && <span className="ml-2 text-xs bg-yellow-600 text-black px-1 rounded font-bold">KING</span>}</div>
+                                            <div className="col-span-3 text-right font-mono font-bold text-lg">{rank.score}</div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                        <div className="py-4">
+                            <button onClick={startGame} className="w-full py-4 text-lg font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-900/50 transition-all flex items-center justify-center gap-2">
+                                <Icons.RefreshCw size={20} /> 다시 도전하기
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+            return null;
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
